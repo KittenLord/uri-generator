@@ -9,10 +9,12 @@ Path: 2
 Path: 
 Query: entire
 Fragment: line
+$ the dollar sign terminates the test and allows for an optional comment till the rest of the line
 
 This URI is malformed
 my uri:// idk
 INVALID
+$ end
 
 Another example
 scheme://userinfo:@:1235/#
@@ -23,6 +25,7 @@ Host:
 Port: 1235
 Path: 
 Fragment: 
+$
 
 =============================
 The above line is not a part of the format

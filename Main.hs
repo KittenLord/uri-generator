@@ -2,6 +2,8 @@ module Main where
 import MyRandom
 import Control.Monad
 import Data.List
+import System.Environment
+import System.Exit
 
 unreservedChars = [ 'a'..'z' ] ++ [ 'A'..'Z' ] ++ [ '0'..'9' ] ++ [ '-', '.', '_', '~' ]
 
@@ -197,15 +199,49 @@ showStatsUri (Uri scheme hier query fragment) =
 testValid :: String -> Random String
 testValid title = do
     uri <- genValidUri
-    pure $ title ++ "\n" ++ show uri ++ "\nVALID\n" ++ showStatsUri uri ++ "\n"
+    pure $ title ++ "\n" ++ show uri ++ "\nVALID\n" ++ showStatsUri uri ++ "$\n\n"
 
 main :: IO ()
 main = do
-    let uris = map (\s -> seed (testValid ("Test #" ++ show s)) s) [0..20]
-    printTests uris
+    args <- getArgs
+    case args of
+        [] -> mainHelpMenu
+        ("help":_) -> mainHelpMenu
+        ("--help":_) -> mainHelpMenu
+        ("uri":"gen":rest) -> mainUriGen Nothing Nothing rest
+        ("uri":"valid-tests":rest) -> mainUriValidTests Nothing Nothing rest
+        _ -> mainUnknownSubcommand
 
-printTests :: [String] -> IO ()
-printTests [] = return ()
-printTests (x:xs) = do
-    putStr x
-    printTests xs
+mainHelpMenu :: IO ()
+mainHelpMenu = do
+    putStrLn "This is a utility for generating various URIs"
+    putStrLn ""
+    putStrLn "Here are all available subcommands:"
+    putStrLn ""
+    putStrLn "\turi gen [--amount n] [--seed n] - generate URIs"
+    putStrLn "\turi valid-tests [--amount n] [--seed n] - generate valid test data"
+
+mainUnknownSubcommand :: IO ()
+mainUnknownSubcommand = do
+    putStrLn "Sorry, I don't know about this subcommand :( Here's the help menu for you\n"
+    mainHelpMenu
+
+mainUriGen :: (Maybe Int) -> (Maybe Rng) -> [String] -> IO ()
+mainUriGen amount' s' [] = do
+    let s = s' `orElse` 0
+    let amount = amount' `orElse` 1
+    let uris = intercalate "\n" $ map show $ seed (sequence $ map (\_ -> genValidUri) (dummyList amount)) s
+    putStrLn uris
+    exitWith ExitSuccess
+mainUriGen amount _ ("--seed":val:rest) = mainUriGen amount (Just $ read val) rest
+mainUriGen _ seed ("--amount":val:rest) = mainUriGen (Just $ read val) seed rest
+
+mainUriValidTests :: (Maybe Int) -> (Maybe Rng) -> [String] -> IO ()
+mainUriValidTests amount' s' [] = do
+    let s = s' `orElse` 0
+    let amount = amount' `orElse` 1
+    let tests = seed (concat <$> (sequence $ map (\n -> testValid $ "Test #" ++ show n ++ ":") [ 1..amount ])) s
+    putStr tests
+    exitWith ExitSuccess
+mainUriValidTests amount _ ("--seed":val:rest) = mainUriValidTests amount (Just $ read val) rest
+mainUriValidTests _ seed ("--amount":val:rest) = mainUriValidTests (Just $ read val) seed rest
