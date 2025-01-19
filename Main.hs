@@ -1,5 +1,6 @@
 module Main where
 import MyRandom
+import Data.List
 
 unreservedChars = [ 'a'..'z' ] ++ [ 'A'..'Z' ] ++ [ '0'..'9' ] ++ [ '-', '.', '_', '~' ]
 
@@ -30,14 +31,42 @@ genValidColon = [ ':' ]
 data HierType = HierAuthority | HierAbsolute | HierRootless | HierEmpty
     deriving (Show, Eq, Bounded, Enum)
 
+genValidPcharString :: Random String -> Random String
+genValidPcharString gen = do
+    this <- randomPercent 80
+    if this then do
+        char <- gen
+        next <- genValidPcharString gen
+        return $ char ++ next
+    else
+        pure ""
+
+
 genValidUserInfo :: Random String
-genValidUserInfo = undefined
+genValidUserInfo = genValidPcharString (genValidPcharRaw ":")
 
 genValidPort :: Random String
-genValidPort = undefined
+genValidPort = genValidPcharString ((\x -> [x]) <$> randomElem [ '0'..'9' ])
+
+data HostType = HostIPLiteral | HostIPv4 | HostRegName
+
+genValidHostRegName :: Random String
+genValidHostRegName = genValidPcharString (genValidPcharRaw "")
+
+genValidHostIPv4 :: Random String
+genValidHostIPv4 = do
+    (intercalate ".") <$> (sequence $ map (\_ -> show <$> randomRange (0, 255)) (emptyList 4))
+
+genValidHostIPLiteral :: Random String
+genValidHostIPLiteral = undefined
 
 genValidHost :: Random String
-genValidHost = undefined
+genValidHost = do
+    opt <- randomElem [ {-HostIPLiteral,-} HostIPv4, HostRegName ]
+    case opt of
+        HostRegName -> genValidHostRegName
+        HostIPv4 -> genValidHostIPv4
+        HostIPLiteral -> genValidHostIPLiteral
 
 genValidAuthority :: Random String
 genValidAuthority = do
@@ -45,20 +74,22 @@ genValidAuthority = do
     usePort <- randomPercent 30
     concat <$> (sequence [ if useUserInfo then (++ "@") <$> genValidUserInfo else pure "", genValidHost, if usePort then (":" ++) <$> genValidPort else pure "" ])
 
-
 genValidPercentEncoding :: Random String
 genValidPercentEncoding = do
     x <- randomElem hexChars
     y <- randomElem hexChars
     return [ '%', x, y ]
 
-genValidPchar :: Random String
-genValidPchar = do
+genValidPcharRaw :: String -> Random String
+genValidPcharRaw extra = do
     percent <- randomPercent 30
     if percent then
         genValidPercentEncoding
     else
-        (\x -> [x]) <$> randomElem (unreservedChars ++ subDelimsChars ++ "@:")
+        (\x -> [x]) <$> randomElem (extra ++ unreservedChars ++ subDelimsChars)
+
+genValidPchar :: Random String
+genValidPchar = genValidPcharRaw "@:"
 
 genValidPathSegment :: Random String
 genValidPathSegment = do
@@ -71,7 +102,7 @@ genValidAbemptyPath = do
     if p then
         pure ""
     else
-        concat <$> (sequence [ pure "/", genValidPathSegment, genValidAbemptyPath ])
+        concat <$> sequence [ pure "/", genValidPathSegment, genValidAbemptyPath ]
 
 genValidAbsolutePath :: Random String
 genValidAbsolutePath = do
@@ -91,9 +122,6 @@ genValidRootlessPath = do
     path <- genValidAbemptyPath
     return $ init ++ segment ++ path
 
-
-    
-
 genValidHier :: Random String
 genValidHier = do
     opt <- randomElem [ HierEmpty, HierAuthority, HierAbsolute, HierRootless ]
@@ -102,9 +130,23 @@ genValidHier = do
         HierAuthority -> concat <$> sequence [ pure "//", genValidAuthority, genValidAbemptyPath ]
         HierAbsolute -> genValidAbsolutePath
         HierRootless -> genValidRootlessPath
-    
+
+genValidQuery :: Random String
+genValidQuery = do
+    empty <- randomPercent 70
+    if empty then pure ""
+    else
+        ('?' :) <$> genValidPcharString (genValidPcharRaw "@:/?")
+
+genValidFragment :: Random String
+genValidFragment = do
+    empty <- randomPercent 70
+    if empty then pure ""
+    else
+        ('#' :) <$> genValidPcharString (genValidPcharRaw "@:/?")
+
 genValidUri :: Random String
-genValidUri = concat <$> (sequence [ genValidScheme, pure genValidColon, genValidHier ])
+genValidUri = concat <$> sequence [ genValidScheme, pure genValidColon, genValidHier, genValidQuery, genValidFragment ]
 
 main :: IO ()
 main = do
