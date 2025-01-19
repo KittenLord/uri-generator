@@ -57,7 +57,7 @@ instance Show Hier where
     show (HierAuthority userinfo host port path) =
         let userinfo' = ((++ "@") <$> userinfo) `orElse` "" in
         let port' = ((':' :) <$> port) `orElse` "" in
-        userinfo' ++ show host ++ port' ++ showAbemptyPath path
+        "//" ++ userinfo' ++ show host ++ port' ++ showAbemptyPath path
 
 
 genValidPcharString :: Random String -> Random String
@@ -176,13 +176,36 @@ genValidUri = do
     fragment <- genValidFragment
     return $ Uri scheme hier query fragment
 
+showStatsPath :: [String] -> String
+showStatsPath = join . map (\path -> "Path: " ++ path ++ "\n")
+
+showStatsHier :: Hier -> String
+showStatsHier HierEmpty = ""
+showStatsHier (HierAbsolute path) = showStatsPath path
+showStatsHier (HierRootless path) = showStatsPath path
+showStatsHier (HierAuthority userinfo host port path) =
+    userinfo' ++ "Host: " ++ show host ++ "\n" ++ port' ++ showStatsPath path
+        where userinfo' = ((\u -> "Userinfo: " ++ u ++ "\n") <$> userinfo) `orElse` ""
+              port' = ((\p -> "Port: " ++ p ++ "\n") <$> port) `orElse` ""
+
+showStatsUri :: Uri -> String
+showStatsUri (Uri scheme hier query fragment) =
+    "Scheme: " ++ scheme ++ "\n" ++ showStatsHier hier ++ query' ++ fragment'
+        where query' = ((\q -> "Query: " ++ q ++ "\n") <$> query) `orElse` ""
+              fragment' = ((\f -> "Fragment: " ++ f ++ "\n") <$> fragment) `orElse` ""
+
+testValid :: String -> Random String
+testValid title = do
+    uri <- genValidUri
+    pure $ title ++ "\n" ++ show uri ++ "\nVALID\n" ++ showStatsUri uri ++ "\n"
+
 main :: IO ()
 main = do
-    let uris = map (\s -> seed genValidUri s) [0..20]
-    printUris uris
+    let uris = map (\s -> seed (testValid ("Test #" ++ show s)) s) [0..20]
+    printTests uris
 
-printUris :: [Uri] -> IO ()
-printUris [] = return ()
-printUris (x:xs) = do
-    putStrLn $ show x
-    printUris xs
+printTests :: [String] -> IO ()
+printTests [] = return ()
+printTests (x:xs) = do
+    putStr x
+    printTests xs
