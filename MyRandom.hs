@@ -13,8 +13,8 @@ rngM = 2^31
 
 data Random a = Random (Rng -> (a, Rng))
 
-randomInt :: Random Int
-randomInt = Random $ \g -> let x = (rngA * g + rngC) `mod` rngM in
+random :: Random Int
+random = Random $ \g -> let x = (rngA * g + rngC) `mod` rngM in
                            (x, x)
 
 instance Functor Random where
@@ -30,14 +30,11 @@ instance Applicative Random where
 instance Monad Random where
     (Random ac) >>= f = Random $ (\(a, g') -> let (Random bc) = f a in bc g') . ac
 
-pickRandom :: [a] -> Random a
-pickRandom xs = do
-    a <- randomInt
+seed :: Random a -> Rng -> a
+seed (Random ac) s = let (a, g) = ac s in a
+
+randomElem :: [a] -> Random a
+randomElem xs = do
+    a <- random
     let i = a `mod` length xs
     return $ xs !! a
-
-randomPair :: Random (Int, Int)
-randomPair = do
-    x <- randomInt
-    y <- randomInt
-    return (x, y)
