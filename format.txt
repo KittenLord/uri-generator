@@ -1,0 +1,30 @@
+Test name takes the entire line
+THIS://uri.also/takes/1/2/?entire#line
+VALID
+Scheme: this
+Host: uri.also
+Path: takes
+Path: 1
+Path: 2
+Path: 
+Query: entire
+Fragment: line
+
+This URI is malformed
+my uri:// idk
+INVALID
+
+Another example
+scheme://userinfo:@:1235/#
+VALID
+Scheme: scheme
+Userinfo: userinfo:
+Host: 
+Port: 1235
+Path: 
+Fragment: 
+
+=============================
+The above line is not a part of the format
+
+As per URI specification, "a component is undefined if its delimiter does not appear in the URI reference. Path is never undefined", or something like that. Therefore, if a component is undefined its line doesn't appear, and if it is defined, but is empty, after the colon goes a single spacebar, and then immediately a newline. All percent-encodings that needn't be percent encoded should be normalized, all capitalization should also be normalized where specified by URI specification. A path takes up multiple "fields", each representing a path segment, which may be empty. If a path is empty, it will not be included at all, to make a distinction with a path that has a single empty segment (third example)

@@ -15,7 +15,7 @@ data Random a = Random (Rng -> (a, Rng))
 
 random :: Random Int
 random = Random $ \g -> let x = (rngA * g + rngC) `mod` rngM in
-                           (x, x)
+                        (x, x)
 
 instance Functor Random where
     fmap f (Random t) = Random $ \g -> let (a, g') = t g in (f a, g')

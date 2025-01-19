@@ -41,7 +41,6 @@ genValidPcharString gen = do
     else
         pure ""
 
-
 genValidUserInfo :: Random String
 genValidUserInfo = genValidPcharString (genValidPcharRaw ":")
 
@@ -57,6 +56,7 @@ genValidHostIPv4 :: Random String
 genValidHostIPv4 = do
     (intercalate ".") <$> (sequence $ map (\_ -> show <$> randomRange (0, 255)) (emptyList 4))
 
+-- TODO: implement
 genValidHostIPLiteral :: Random String
 genValidHostIPLiteral = undefined
 
