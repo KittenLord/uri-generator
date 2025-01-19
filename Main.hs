@@ -1,5 +1,6 @@
 module Main where
 import MyRandom
+import Data.Char
 import Control.Monad
 import Data.List
 import System.Environment
@@ -40,6 +41,11 @@ instance Show Host where
     show (HostIPLiteral v) = v
     show (HostIPv4 v) = v
     show (HostRegName v) = v
+
+showStatsHost :: Host -> String
+showStatsHost (HostIPLiteral v) = v
+showStatsHost (HostIPv4 v) = v
+showStatsHost (HostRegName v) = normalizeComponent Lower v (unreservedChars ++ subDelimsChars)
 
 data Hier = HierAuthority (Maybe String) Host (Maybe String) [String]
           | HierAbsolute [String]
@@ -178,23 +184,36 @@ genValidUri = do
     fragment <- genValidFragment
     return $ Uri scheme hier query fragment
 
+data Case = Lower | Keep
+
+condLower :: Case -> Char -> Char
+condLower Keep c = c
+condLower Lower c = toLower c
+
+normalizeComponent :: Case -> String -> String -> String
+normalizeComponent _ [] _ = []
+normalizeComponent c ('%':x:y:xs) allowed = let hex = (ord y - ord '0') + 16*(ord x - ord '0') in
+                                            let safe = any (\c -> ord c == hex) allowed in
+                                            (if safe then [condLower c $ chr hex] else [ '%', toUpper x, toUpper y ]) ++ normalizeComponent c xs allowed
+normalizeComponent c (x:xs) allowed = condLower c x : normalizeComponent c xs allowed
+
 showStatsPath :: [String] -> String
-showStatsPath = join . map (\path -> "Path: " ++ path ++ "\n")
+showStatsPath = join . map (\path -> "Path: " ++ (normalizeComponent Keep path (unreservedChars ++ subDelimsChars ++ "@:")) ++ "\n")
 
 showStatsHier :: Hier -> String
 showStatsHier HierEmpty = ""
 showStatsHier (HierAbsolute path) = showStatsPath path
 showStatsHier (HierRootless path) = showStatsPath path
 showStatsHier (HierAuthority userinfo host port path) =
-    userinfo' ++ "Host: " ++ show host ++ "\n" ++ port' ++ showStatsPath path
-        where userinfo' = ((\u -> "Userinfo: " ++ u ++ "\n") <$> userinfo) `orElse` ""
+    userinfo' ++ "Host: " ++ showStatsHost host ++ "\n" ++ port' ++ showStatsPath path
+        where userinfo' = normalizeComponent Keep (((\u -> "Userinfo: " ++ u ++ "\n") <$> userinfo) `orElse` "") (unreservedChars ++ subDelimsChars ++ ":")
               port' = ((\p -> "Port: " ++ p ++ "\n") <$> port) `orElse` ""
 
 showStatsUri :: Uri -> String
 showStatsUri (Uri scheme hier query fragment) =
-    "Scheme: " ++ scheme ++ "\n" ++ showStatsHier hier ++ query' ++ fragment'
-        where query' = ((\q -> "Query: " ++ q ++ "\n") <$> query) `orElse` ""
-              fragment' = ((\f -> "Fragment: " ++ f ++ "\n") <$> fragment) `orElse` ""
+    "Scheme: " ++ (normalizeComponent Lower scheme schemeChars) ++ "\n" ++ showStatsHier hier ++ query' ++ fragment'
+        where query' = normalizeComponent Keep (((\q -> "Query: " ++ q ++ "\n") <$> query) `orElse` "") (unreservedChars ++ subDelimsChars ++ "@:/?")
+              fragment' = normalizeComponent Keep (((\f -> "Fragment: " ++ f ++ "\n") <$> fragment) `orElse` "") (unreservedChars ++ subDelimsChars ++ "@:/?")
 
 testValid :: String -> Random String
 testValid title = do
@@ -218,8 +237,9 @@ mainHelpMenu = do
     putStrLn ""
     putStrLn "Here are all available subcommands:"
     putStrLn ""
-    putStrLn "\turi gen [--amount n] [--seed n] - generate URIs"
-    putStrLn "\turi valid-tests [--amount n] [--seed n] - generate valid test data"
+    putStrLn "\thelp                                      - see this message"
+    putStrLn "\turi gen [--amount n] [--seed n]           - generate URIs"
+    putStrLn "\turi valid-tests [--amount n] [--seed n]   - generate valid test data"
 
 mainUnknownSubcommand :: IO ()
 mainUnknownSubcommand = do
