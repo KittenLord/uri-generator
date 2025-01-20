@@ -86,9 +86,12 @@ genValidUserInfo = do
 
 genValidPort :: Random (Maybe String)
 genValidPort = do
-    empty <- randomPercent 50
+    empty <- randomPercent 30
     if empty then pure Nothing
-    else Just <$> genValidPcharString ((\x -> [x]) <$> randomElem [ '0'..'9' ])
+    else do
+        digit <- randomElem [ '0'..'9' ]
+        next <- genValidPort
+        return $ Just $ digit : (next `orElse` "")
 
 genValidHostRegName :: Random Host
 genValidHostRegName = HostRegName <$> genValidPcharString (genValidPcharRaw "")
@@ -140,7 +143,7 @@ genValidAbemptyPath = do
         return []
     else do
         segment <- genValidPathSegment 0
-        (++ [segment]) <$> genValidAbemptyPath
+        (segment :) <$> genValidAbemptyPath
 
 genValidAbsolutePath :: Random [String]
 genValidAbsolutePath = do
@@ -149,7 +152,7 @@ genValidAbsolutePath = do
         pure [""]
     else do
         segment <- genValidPathSegment 1
-        (++ [segment]) <$> genValidAbemptyPath
+        (segment :) <$> genValidAbemptyPath
 
 genValidRootlessPath = genValidAbsolutePath
 
@@ -190,9 +193,16 @@ condLower :: Case -> Char -> Char
 condLower Keep c = c
 condLower Lower c = toLower c
 
+getHexDigitValue :: Char -> Int
+getHexDigitValue c
+    | elem c [ '0'..'9' ] = ord c - ord '0'
+    | elem c [ 'a'..'f' ] = ord c - ord 'a' + 10
+    | elem c [ 'A'..'F' ] = ord c - ord 'A' + 10
+    | otherwise = 0
+
 normalizeComponent :: Case -> String -> String -> String
 normalizeComponent _ [] _ = []
-normalizeComponent c ('%':x:y:xs) allowed = let hex = (ord y - ord '0') + 16*(ord x - ord '0') in
+normalizeComponent c ('%':x:y:xs) allowed = let hex = 16*(getHexDigitValue x) + (getHexDigitValue y)  in
                                             let safe = any (\c -> ord c == hex) allowed in
                                             (if safe then [condLower c $ chr hex] else [ '%', toUpper x, toUpper y ]) ++ normalizeComponent c xs allowed
 normalizeComponent c (x:xs) allowed = condLower c x : normalizeComponent c xs allowed
